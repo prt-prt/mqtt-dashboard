@@ -52,7 +52,9 @@ export default function Home() {
         setTopics(prev => [{ topic, message: message.toString() }, ...prev.slice(0, 99)]);
       });
     }
-    return () => client?.end(true);
+    return () => {
+      client?.end(true);
+    };
   }, [client]);
 
   const connect = () => {
