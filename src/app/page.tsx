@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { Switch } from '@/components/ui/switch';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Home() {
   const [client, setClient] = useState<MqttClient | null>(null);
@@ -13,13 +15,21 @@ export default function Home() {
   const [brokerUrl, setBrokerUrl] = useState('ws://localhost:8888');
   const [topics, setTopics] = useState<{ topic: string; message: string }[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedUrl = localStorage.getItem('brokerUrl');
+      const theme = localStorage.getItem('theme');
       if (savedUrl) setBrokerUrl(savedUrl);
+      if (theme === 'dark') setDarkMode(true);
     }
   }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
   useEffect(() => {
     if (client) {
@@ -67,11 +77,15 @@ export default function Home() {
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      toast.success('Message copied to clipboard');
-    }, () => {
-      toast.error('Failed to copy');
-    });
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        toast.success('Message copied to clipboard');
+      }).catch(() => {
+        toast.error('Failed to copy');
+      });
+    } else {
+      toast.error('Clipboard API not available');
+    }
   };
 
   const filteredMessages = selectedTopic
@@ -80,9 +94,14 @@ export default function Home() {
 
   return (
     <main className="flex flex-col min-h-screen p-4 gap-4 bg-background text-foreground">
-      <Card>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">MQTT Dashboard</h1>
+        <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+      </div>
+
+      <Card className="transition-all">
         <CardHeader>
-          <CardTitle>MQTT Dashboard</CardTitle>
+          <CardTitle>Connection</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <Input
@@ -123,15 +142,21 @@ export default function Home() {
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-bold">Messages for: {selectedTopic}</h2>
           <div className="flex flex-col gap-1">
-            {filteredMessages.map((m, i) => (
-              <div
-                key={i}
-                className="p-2 rounded bg-muted cursor-pointer"
-                onClick={() => copyToClipboard(`${m.topic}: ${m.message}`)}
-              >
-                {m.message}
-              </div>
-            ))}
+            <AnimatePresence>
+              {filteredMessages.map((m, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                  transition={{ duration: 0.2 }}
+                  className="p-2 rounded bg-muted cursor-pointer"
+                  onClick={() => copyToClipboard(`${m.topic}: ${m.message}`)}
+                >
+                  {m.message}
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         </div>
       )}
