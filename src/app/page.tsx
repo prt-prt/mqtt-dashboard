@@ -1,3 +1,5 @@
+// Full Final Version: MQTT Dashboard App (Next.js + Tailwind + ShadCN + mqtt.js + Recharts + Framer Motion)
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -5,9 +7,10 @@ import mqtt, { MqttClient } from 'mqtt';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Home() {
   const [client, setClient] = useState<MqttClient | null>(null);
@@ -59,6 +62,7 @@ export default function Home() {
       setClient(mqttClient);
       localStorage.setItem('brokerUrl', brokerUrl);
     } catch (error) {
+      console.error('Connection error:', error);
       toast.error('Failed to connect');
     }
   };
@@ -92,6 +96,16 @@ export default function Home() {
     ? topics.filter(t => t.topic === selectedTopic)
     : topics;
 
+  const numericData = filteredMessages
+    .map((m, i) => {
+      const value = parseFloat(m.message);
+      if (!isNaN(value)) {
+        return { index: filteredMessages.length - i, value };
+      }
+      return null;
+    })
+    .filter(Boolean) as { index: number; value: number }[];
+
   return (
     <main className="flex flex-col min-h-screen p-4 gap-4 bg-background text-foreground">
       <div className="flex justify-between items-center">
@@ -112,11 +126,11 @@ export default function Home() {
           <div className="flex gap-2">
             {isConnected ? (
               <>
-                <Button variant="destructive" onClick={disconnect}>Disconnect</Button>
+                <Button variant="default" onClick={disconnect}>Disconnect</Button>
                 <Button variant="secondary" onClick={clearMessages}>Clear Messages</Button>
               </>
             ) : (
-              <Button onClick={connect}>Connect</Button>
+              <Button variant="default" onClick={connect}>Connect</Button>
             )}
           </div>
         </CardContent>
@@ -139,8 +153,23 @@ export default function Home() {
       </div>
 
       {selectedTopic && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-4">
           <h2 className="text-lg font-bold">Messages for: {selectedTopic}</h2>
+
+          {numericData.length > 0 && (
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={numericData.reverse()}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="index" hide />
+                  <YAxis domain={['auto', 'auto']} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="value" stroke="#4F46E5" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
           <div className="flex flex-col gap-1">
             <AnimatePresence>
               {filteredMessages.map((m, i) => (
