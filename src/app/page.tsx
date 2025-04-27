@@ -1,4 +1,4 @@
-// Full Final Version: MQTT Dashboard App (Next.js + Tailwind + ShadCN + mqtt.js + Recharts + Framer Motion)
+// Full Final Version with Loading + Connection Status Indicator
 
 'use client';
 
@@ -12,9 +12,11 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
+
 export default function Home() {
   const [client, setClient] = useState<MqttClient | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [brokerUrl, setBrokerUrl] = useState('ws://localhost:8888');
   const [topics, setTopics] = useState<{ topic: string; message: string }[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
@@ -37,15 +39,15 @@ export default function Home() {
   useEffect(() => {
     if (client) {
       client.on('connect', () => {
-        setIsConnected(true);
+        setConnectionStatus('connected');
         toast.success('Connected to MQTT broker');
       });
       client.on('reconnect', () => {
-        setIsConnected(false);
+        setConnectionStatus('connecting');
         toast('Reconnecting to MQTT broker...');
       });
       client.on('close', () => {
-        setIsConnected(false);
+        setConnectionStatus('disconnected');
         toast.error('Disconnected from MQTT broker');
       });
       client.on('message', (topic, message) => {
@@ -59,6 +61,7 @@ export default function Home() {
 
   const connect = () => {
     try {
+      setConnectionStatus('connecting');
       const mqttClient = mqtt.connect(brokerUrl, { protocolVersion: 4, clean: true });
       mqttClient.subscribe('#');
       setClient(mqttClient);
@@ -66,13 +69,14 @@ export default function Home() {
     } catch (error) {
       console.error('Connection error:', error);
       toast.error('Failed to connect');
+      setConnectionStatus('disconnected');
     }
   };
 
   const disconnect = () => {
     client?.end(true);
     setClient(null);
-    setIsConnected(false);
+    setConnectionStatus('disconnected');
     setTopics([]);
     toast.success('Disconnected');
   };
@@ -108,11 +112,31 @@ export default function Home() {
     })
     .filter(Boolean) as { index: number; value: number }[];
 
+  const getStatusColor = () => {
+    switch (connectionStatus) {
+      case 'connected': return 'bg-green-500';
+      case 'connecting': return 'bg-yellow-400';
+      case 'disconnected': return 'bg-red-500';
+    }
+  };
+
   return (
     <main className="flex flex-col min-h-screen p-4 gap-4 bg-background text-foreground">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">MQTT Dashboard</h1>
         <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
+        <span className="text-sm">
+          {connectionStatus === 'connecting' ? (
+            <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+              ⏳
+            </motion.span>
+          ) : null}
+          {connectionStatus.charAt(0).toUpperCase() + connectionStatus.slice(1)}
+        </span>
       </div>
 
       <Card className="transition-all">
@@ -126,13 +150,15 @@ export default function Home() {
             placeholder="Broker URL (e.g., ws://localhost:8888)"
           />
           <div className="flex gap-2">
-            {isConnected ? (
+            {connectionStatus === 'connected' ? (
               <>
                 <Button variant="default" onClick={disconnect}>Disconnect</Button>
                 <Button variant="secondary" onClick={clearMessages}>Clear Messages</Button>
               </>
             ) : (
-              <Button variant="default" onClick={connect}>Connect</Button>
+              <Button variant="default" onClick={connect} disabled={connectionStatus === 'connecting'}>
+                {connectionStatus === 'connecting' ? 'Connecting...' : 'Connect'}
+              </Button>
             )}
           </div>
         </CardContent>
